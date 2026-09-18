@@ -1,6 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 
 const SCALE_MODES = ['native', 'fit', 'fill', 'stretch'];
+const AUTOPILOT_MODES = [
+  ['off', 'Off'],
+  ['forward', 'Forward'],
+  ['reverse', 'Reverse'],
+  ['random', 'Random'],
+];
 
 export default function App() {
   const [deck, setDeck] = useState(null);
@@ -8,6 +14,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [spoutStatus, setSpoutStatus] = useState(null);
   const [scaleMode, setScaleMode] = useState('fit');
+  const [fade, setFade] = useState(true);
+  const [fadeDurationMs, setFadeDurationMs] = useState(400);
 
   useEffect(() => {
     const offProgress = window.api.onConvertProgress((p) => setProgress(p.stage));
@@ -15,12 +23,36 @@ export default function App() {
       setProgress(null);
       setDeck(d);
     });
+    const offDeckUpdate = window.api.onDeckUpdate((d) => setDeck(d));
     window.api.spoutStatus().then(setSpoutStatus);
-    window.api.settingsLoad().then((s) => setScaleMode(s.scaleMode));
+    window.api.settingsLoad().then((s) => {
+      setScaleMode(s.scaleMode);
+      setFade(s.fade);
+      setFadeDurationMs(s.fadeDurationMs);
+    });
     return () => {
       offProgress();
       offComplete();
+      offDeckUpdate();
     };
+  }, []);
+
+  const handleAutopilot = useCallback(async (mode) => {
+    setDeck(await window.api.autopilotSet(mode));
+  }, []);
+
+  const handleDuration = useCallback(async (seconds) => {
+    setDeck(await window.api.durationSet(seconds));
+  }, []);
+
+  const handleLoop = useCallback(async (enabled) => {
+    setDeck(await window.api.loopSet(enabled));
+  }, []);
+
+  const handleFade = useCallback(async (enabled, ms) => {
+    const result = await window.api.fadeSet(enabled, ms);
+    setFade(result.fade);
+    setFadeDurationMs(result.fadeDurationMs);
   }, []);
 
   const handleSpoutToggle = useCallback(async () => {
@@ -114,8 +146,8 @@ export default function App() {
               <button className="btn-primary" onClick={handleLoad}>Load another</button>
             </div>
 
-            <div className="scale-modes">
-              <span className="scale-label">Scale</span>
+            <div className="chip-row">
+              <span className="row-label">Scale</span>
               {SCALE_MODES.map((mode) => (
                 <button
                   key={mode}
@@ -125,6 +157,61 @@ export default function App() {
                   {mode}
                 </button>
               ))}
+            </div>
+
+            <div className="chip-row">
+              <span className="row-label">Autopilot</span>
+              {AUTOPILOT_MODES.map(([mode, label]) => (
+                <button
+                  key={mode}
+                  className={mode === deck.autopilot ? 'chip chip-active' : 'chip'}
+                  onClick={() => handleAutopilot(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="chip-row">
+              <label className="row-label" htmlFor="duration">Every</label>
+              <input
+                id="duration"
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={deck.duration}
+                onChange={(e) => handleDuration(Number(e.target.value))}
+                className="number-input"
+              />
+              <span className="unit">sec</span>
+
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={deck.loop}
+                  onChange={(e) => handleLoop(e.target.checked)}
+                />
+                Loop
+              </label>
+
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={fade}
+                  onChange={(e) => handleFade(e.target.checked, fadeDurationMs)}
+                />
+                Fade
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                value={fadeDurationMs}
+                disabled={!fade}
+                onChange={(e) => handleFade(fade, Number(e.target.value))}
+                className="number-input"
+              />
+              <span className="unit">ms</span>
             </div>
           </div>
         )}

@@ -50,28 +50,19 @@ export async function init({ width = 1920, height = 1080, frameRate = 30 } = {})
   await ready;
 }
 
-function escapeForJs(value) {
-  return JSON.stringify(String(value));
-}
-
-export async function showSlide(url, scaleMode = 'fit') {
+export async function showSlide(url, scaleMode = 'fit', fadeMs = 0) {
   if (!window) return;
   await ready;
-  await window.webContents.executeJavaScript(`
-    (() => {
-      const el = document.getElementById('slide');
-      el.className = ${escapeForJs(scaleMode)};
-      el.src = ${escapeForJs(url)};
-    })();
-  `);
+  const args = [url, scaleMode, Number(fadeMs) || 0].map((v) => JSON.stringify(v)).join(', ');
+  await window.webContents.executeJavaScript(`window.__showSlide(${args});`);
 }
 
 export async function setScaleMode(scaleMode) {
   if (!window) return;
   await ready;
-  await window.webContents.executeJavaScript(`
-    document.getElementById('slide').className = ${escapeForJs(scaleMode)};
-  `);
+  await window.webContents.executeJavaScript(
+    `window.__setScaleMode(${JSON.stringify(scaleMode)});`,
+  );
 }
 
 export function getOutputSize() {

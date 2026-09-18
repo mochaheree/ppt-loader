@@ -5,6 +5,7 @@ import Store from 'electron-store';
 import { convertPresentation, CACHE_ROOT } from './converter.js';
 import * as spout from './spout.js';
 import * as offscreen from './offscreenRenderer.js';
+import * as engine from './slideEngine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const store = new Store();
@@ -66,24 +67,40 @@ function toSlideUrl(fileHash, pngPath) {
   return `slide://${fileHash}/${path.basename(pngPath)}`;
 }
 
-function serializeDeck(deck) {
-  if (!deck) return null;
+function serializeDeck() {
+  if (!currentDeck) return null;
+  const { currentIndex, autopilot, duration, loop } = engine.getState();
   return {
-    filePath: deck.filePath,
-    fileHash: deck.fileHash,
-    slideCount: deck.slideCount,
-    currentIndex: deck.currentIndex,
-    slides: deck.slides.map((s) => ({ ...s, url: toSlideUrl(deck.fileHash, s.pngPath) })),
+    filePath: currentDeck.filePath,
+    fileHash: currentDeck.fileHash,
+    slideCount: currentDeck.slideCount,
+    currentIndex,
+    autopilot,
+    duration,
+    loop,
+    slides: currentDeck.slides.map((s) => ({
+      ...s,
+      url: toSlideUrl(currentDeck.fileHash, s.pngPath),
+    })),
   };
 }
 
 async function pushCurrentSlide() {
   if (!currentDeck || !offscreen.isRunning()) return;
-  const slide = currentDeck.slides[currentDeck.currentIndex];
+  const { scaleMode, fade, fadeDurationMs } = getSettings();
+  const slide = currentDeck.slides[engine.getState().currentIndex];
   await offscreen.showSlide(
     toSlideUrl(currentDeck.fileHash, slide.pngPath),
-    getSettings().scaleMode,
+    scaleMode,
+    fade ? fadeDurationMs : 0,
   );
+}
+
+// Autopilot advances slides from the engine's own timer, so the renderer is
+// notified here rather than only in response to an IPC call.
+async function handleSlideChange() {
+  await pushCurrentSlide();
+  mainWindow?.webContents.send('deck:updated', serializeDeck());
 }
 
 async function loadPresentation(filePath) {
@@ -91,10 +108,10 @@ async function loadPresentation(filePath) {
   const manifest = await convertPresentation(filePath, {
     onProgress: (p) => mainWindow.webContents.send('convert:progress', p),
   });
-  currentDeck = { ...manifest, currentIndex: 0 };
-  await pushCurrentSlide();
-  mainWindow.webContents.send('convert:complete', serializeDeck(currentDeck));
-  return serializeDeck(currentDeck);
+  currentDeck = manifest;
+  engine.reset(); // pushes slide 1 through onChange
+  mainWindow.webContents.send('convert:complete', serializeDeck());
+  return serializeDeck();
 }
 
 ipcMain.handle('file:load', async () => {
@@ -114,26 +131,48 @@ ipcMain.handle('file:load', async () => {
 
 ipcMain.handle('file:getRecent', () => store.get('recentFiles', []));
 
-ipcMain.handle('playback:next', async () => {
+// The engine's onChange pushes the new slide to the offscreen renderer, so
+// these handlers only need to return the resulting state.
+ipcMain.handle('playback:next', () => {
   if (!currentDeck) return null;
-  currentDeck.currentIndex = (currentDeck.currentIndex + 1) % currentDeck.slideCount;
-  await pushCurrentSlide();
-  return serializeDeck(currentDeck);
+  engine.next();
+  return serializeDeck();
 });
 
-ipcMain.handle('playback:prev', async () => {
+ipcMain.handle('playback:prev', () => {
   if (!currentDeck) return null;
-  currentDeck.currentIndex =
-    (currentDeck.currentIndex - 1 + currentDeck.slideCount) % currentDeck.slideCount;
-  await pushCurrentSlide();
-  return serializeDeck(currentDeck);
+  engine.prev();
+  return serializeDeck();
 });
 
-ipcMain.handle('playback:playAt', async (_event, index) => {
+ipcMain.handle('playback:playAt', (_event, index) => {
   if (!currentDeck) return null;
-  currentDeck.currentIndex = Math.max(0, Math.min(index, currentDeck.slideCount - 1));
-  await pushCurrentSlide();
-  return serializeDeck(currentDeck);
+  engine.playAt(index);
+  return serializeDeck();
+});
+
+ipcMain.handle('autopilot:set', (_event, mode) => {
+  engine.setAutopilot(mode);
+  return serializeDeck();
+});
+
+ipcMain.handle('duration:set', (_event, seconds) => {
+  store.set('deckSettings', { ...getSettings(), duration: seconds });
+  engine.setDuration(seconds);
+  return serializeDeck();
+});
+
+ipcMain.handle('loop:set', (_event, enabled) => {
+  store.set('deckSettings', { ...getSettings(), loop: enabled });
+  engine.setLoop(enabled);
+  return serializeDeck();
+});
+
+ipcMain.handle('fade:set', (_event, enabled, ms) => {
+  const next = { ...getSettings(), fade: enabled };
+  if (typeof ms === 'number') next.fadeDurationMs = ms;
+  store.set('deckSettings', next);
+  return { fade: next.fade, fadeDurationMs: next.fadeDurationMs };
 });
 
 ipcMain.handle('scale:set', async (_event, scaleMode) => {
@@ -167,10 +206,16 @@ ipcMain.handle('settings:load', () => getSettings());
 
 app.on('ready', () => {
   registerSlideProtocol();
+  engine.init({
+    getDeck: () => currentDeck,
+    onChange: handleSlideChange,
+    settings: getSettings(),
+  });
   createWindow();
 });
 
 app.on('before-quit', () => {
+  engine.stop();
   offscreen.destroy();
   spout.stop();
 });
