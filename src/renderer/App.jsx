@@ -15,6 +15,7 @@ import Toggle from './components/ui/Toggle.jsx';
 import Badge from './components/ui/Badge.jsx';
 import Segmented from './components/ui/Segmented.jsx';
 import Donate from './components/Donate.jsx';
+import appIcon from '../../icon/app-icon.png';
 
 const TABS = [
   { id: 'perform', label: 'Perform' },
@@ -154,10 +155,13 @@ export default function App() {
       <header className="drag-region flex h-12 shrink-0 items-center border-b border-border">
         <div className="titlebar-inner flex h-full items-center justify-between pr-4 pl-4">
           <div className="flex items-center gap-5">
-            <span className="font-heading text-[14px] tracking-tight">
-              <span className="text-muted-foreground">CUEVO</span>{' '}
-              <span className="font-semibold">PPT Loader</span>
-            </span>
+            <div className="flex items-center gap-2.5">
+              <img src={appIcon} alt="" className="size-[22px] rounded-[5px]" />
+              <span className="font-heading text-[14px] tracking-tight">
+                <span className="text-muted-foreground">CUEVO</span>{' '}
+                <span className="font-semibold">PPT Loader</span>
+              </span>
+            </div>
 
             <nav className="no-drag flex gap-1 rounded-md bg-secondary p-1">
               {TABS.map((t) => (

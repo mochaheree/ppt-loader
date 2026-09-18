@@ -40,6 +40,7 @@ function createWindow() {
     // renderer paints.
     backgroundColor: '#0a0a0a',
     title: 'CUEVO PPT Loader',
+    icon: path.join(__dirname, '..', '..', 'icon', 'app-icon.png'),
     autoHideMenuBar: true,
     // VS Code-style title bar, as in BeatSync: the system bar is hidden and the
     // app's own header takes its place, while the window controls stay NATIVE

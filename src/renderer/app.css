@@ -6,15 +6,15 @@
 @import "@fontsource-variable/source-sans-3";
 @import "@fontsource-variable/ibm-plex-sans";
 
-/* Shared with CUEVO BeatSync: shadcn preset b7PaZO816h — style Vega, base
-   Neutral, radius Large, with the preset's lime accent replaced by the CUEVO
-   brand colour.
+/* Shadcn preset b7PaZO816h — style Vega, base Neutral, radius Large, carrying
+   BeatSync's neutral scale with this app's own brand colour.
 
-   #335C67 measures 7.32:1 under white, so it is a strong fill — but only 2.70:1
-   as text on this background, under even the 3.0 large-text floor. So the brand
-   colour fills (buttons, the logo mark) and a lighter tint of the same hue
-   (217°) carries anything thin or text-like: 7.53:1, readable across a dark
-   room. Never set type in --primary on --background.
+   #568203 measures 4.58:1 under white: it clears AA for body text as a fill,
+   but with less headroom than BeatSync's teal, so keep white-on-primary to
+   solid UI text and never to hairline strokes. As text on this background it
+   reaches 4.33:1, which is usable but still short of 4.5 — so a lighter tint
+   of the same hue (81°) carries anything thin or text-like: #8BB143 at 7.98:1,
+   readable across a dark room. Prefer --primary-bright over --primary for type.
 
    Dark-only: a booth is dark and a light flash mid-set is a hazard. */
 :root {
@@ -24,9 +24,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #335C67;
+  --primary: #568203;
   --primary-foreground: #ffffff;
-  --primary-bright: #7ca7b3;
+  --primary-bright: #8BB143;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -37,7 +37,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #335C67;
+  --ring: #568203;
 
   --radius: 1rem;
 
