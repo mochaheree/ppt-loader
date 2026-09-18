@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('api', {
   fileLoad: () => ipcRenderer.invoke('file:load'),
   fileGetRecent: () => ipcRenderer.invoke('file:getRecent'),
 
+  engineList: () => ipcRenderer.invoke('engine:list'),
+  engineSet: (engine) => ipcRenderer.invoke('engine:set', engine),
+
   playbackNext: () => ipcRenderer.invoke('playback:next'),
   playbackPrev: () => ipcRenderer.invoke('playback:prev'),
   playbackPlayAt: (index) => ipcRenderer.invoke('playback:playAt', index),

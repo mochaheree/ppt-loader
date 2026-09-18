@@ -4,9 +4,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { createCanvas } from '@napi-rs/canvas';
 
 const execFileAsync = promisify(execFile);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const CACHE_ROOT = path.join(os.tmpdir(), 'cuevo-ppt-loader-cache');
 
@@ -36,10 +38,23 @@ async function resolveSofficePath() {
   throw new Error('LibreOffice (soffice.exe) not found. Install it or configure a custom path.');
 }
 
-async function fileHash(filePath) {
+async function fileHash(filePath, engine) {
   const stat = await fs.stat(filePath);
-  const key = `${filePath}:${stat.size}:${stat.mtimeMs}`;
+  // The engine is part of the key so switching engines re-renders rather than
+  // serving the other engine's cached slides.
+  const key = `${filePath}:${stat.size}:${stat.mtimeMs}:${engine}`;
   return crypto.createHash('sha1').update(key).digest('hex').slice(0, 16);
+}
+
+export async function isPowerPointAvailable() {
+  try {
+    const { stdout } = await execFileAsync('reg', [
+      'query', 'HKLM\\SOFTWARE\\Classes\\PowerPoint.Application',
+    ]);
+    return stdout.includes('PowerPoint.Application');
+  } catch {
+    return false;
+  }
 }
 
 async function convertPptxToPdf(pptxPath, outDir) {
@@ -96,12 +111,46 @@ async function rasterizePdfToPngs(pdfPath, outDir, { scale = 2 } = {}) {
   return slides;
 }
 
+async function convertWithPowerPoint(pptxPath, outDir, { width = 1920, height = 1080 } = {}) {
+  if (!(await isPowerPointAvailable())) {
+    throw new Error('Microsoft PowerPoint is not installed. Use the LibreOffice engine instead.');
+  }
+
+  const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'export-pptx.ps1');
+  await execFileAsync('powershell', [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', scriptPath,
+    '-InputPath', pptxPath,
+    '-OutDir', outDir,
+    '-Width', String(width),
+    '-Height', String(height),
+  ], { timeout: 180000 });
+
+  // PowerPoint writes Slide1.PNG, Slide2.PNG, ... so order by the trailing
+  // number rather than lexically (Slide10 would otherwise sort before Slide2).
+  const exported = (await fs.readdir(outDir))
+    .filter((name) => /^slide\d+\.png$/i.test(name))
+    .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+
+  const slides = [];
+  for (const [index, name] of exported.entries()) {
+    const target = path.join(outDir, `slide-${String(index + 1).padStart(3, '0')}.png`);
+    if (path.join(outDir, name) !== target) {
+      await fs.rename(path.join(outDir, name), target);
+    }
+    slides.push({ index, pngPath: target, width, height });
+  }
+
+  if (slides.length === 0) throw new Error('PowerPoint exported no slides');
+  return slides;
+}
+
 /**
  * Converts a .pptx/.ppt file into a set of per-slide PNGs, caching by file
  * hash so re-opening an unchanged file skips reconversion.
  */
-export async function convertPresentation(pptxPath, { onProgress } = {}) {
-  const hash = await fileHash(pptxPath);
+export async function convertPresentation(pptxPath, { onProgress, engine = 'libreoffice' } = {}) {
+  const hash = await fileHash(pptxPath, engine);
   const outDir = path.join(CACHE_ROOT, hash);
   const manifestPath = path.join(outDir, 'manifest.json');
 
@@ -114,13 +163,24 @@ export async function convertPresentation(pptxPath, { onProgress } = {}) {
 
   await fs.mkdir(outDir, { recursive: true });
 
-  onProgress?.({ stage: 'convert-to-pdf' });
-  const pdfPath = await convertPptxToPdf(pptxPath, outDir);
+  let slides;
+  if (engine === 'powerpoint') {
+    onProgress?.({ stage: 'powerpoint-export' });
+    slides = await convertWithPowerPoint(pptxPath, outDir);
+  } else {
+    onProgress?.({ stage: 'convert-to-pdf' });
+    const pdfPath = await convertPptxToPdf(pptxPath, outDir);
+    onProgress?.({ stage: 'rasterize' });
+    slides = await rasterizePdfToPngs(pdfPath, outDir);
+  }
 
-  onProgress?.({ stage: 'rasterize' });
-  const slides = await rasterizePdfToPngs(pdfPath, outDir);
-
-  const manifest = { filePath: pptxPath, fileHash: hash, slideCount: slides.length, slides };
+  const manifest = {
+    filePath: pptxPath,
+    fileHash: hash,
+    engine,
+    slideCount: slides.length,
+    slides,
+  };
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 
   return { ...manifest, cached: false };

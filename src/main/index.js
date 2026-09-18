@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
-import { convertPresentation, CACHE_ROOT } from './converter.js';
+import { convertPresentation, isPowerPointAvailable, CACHE_ROOT } from './converter.js';
 import * as spout from './spout.js';
 import * as offscreen from './offscreenRenderer.js';
 import * as engine from './slideEngine.js';
@@ -106,6 +106,7 @@ async function handleSlideChange() {
 async function loadPresentation(filePath) {
   mainWindow.webContents.send('convert:progress', { stage: 'starting' });
   const manifest = await convertPresentation(filePath, {
+    engine: getSettings().engine,
     onProgress: (p) => mainWindow.webContents.send('convert:progress', p),
   });
   currentDeck = manifest;
@@ -130,6 +131,19 @@ ipcMain.handle('file:load', async () => {
 });
 
 ipcMain.handle('file:getRecent', () => store.get('recentFiles', []));
+
+ipcMain.handle('engine:list', async () => ({
+  current: getSettings().engine,
+  powerPointAvailable: await isPowerPointAvailable(),
+}));
+
+// Reloads with the new engine so the change is visible immediately rather
+// than waiting for the next file open.
+ipcMain.handle('engine:set', async (_event, engineName) => {
+  store.set('deckSettings', { ...getSettings(), engine: engineName });
+  if (currentDeck) await loadPresentation(currentDeck.filePath);
+  return { engine: engineName };
+});
 
 // The engine's onChange pushes the new slide to the offscreen renderer, so
 // these handlers only need to return the resulting state.

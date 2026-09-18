@@ -16,6 +16,7 @@ export default function App() {
   const [scaleMode, setScaleMode] = useState('fit');
   const [fade, setFade] = useState(true);
   const [fadeDurationMs, setFadeDurationMs] = useState(400);
+  const [engines, setEngines] = useState(null);
 
   useEffect(() => {
     const offProgress = window.api.onConvertProgress((p) => setProgress(p.stage));
@@ -25,6 +26,7 @@ export default function App() {
     });
     const offDeckUpdate = window.api.onDeckUpdate((d) => setDeck(d));
     window.api.spoutStatus().then(setSpoutStatus);
+    window.api.engineList().then(setEngines);
     window.api.settingsLoad().then((s) => {
       setScaleMode(s.scaleMode);
       setFade(s.fade);
@@ -53,6 +55,11 @@ export default function App() {
     const result = await window.api.fadeSet(enabled, ms);
     setFade(result.fade);
     setFadeDurationMs(result.fadeDurationMs);
+  }, []);
+
+  const handleEngine = useCallback(async (name) => {
+    setEngines((prev) => ({ ...prev, current: name }));
+    await window.api.engineSet(name);
   }, []);
 
   const handleSpoutToggle = useCallback(async () => {
@@ -213,6 +220,30 @@ export default function App() {
               />
               <span className="unit">ms</span>
             </div>
+
+            {engines && (
+              <div className="chip-row">
+                <span className="row-label">Engine</span>
+                <button
+                  className={engines.current === 'libreoffice' ? 'chip chip-active' : 'chip'}
+                  onClick={() => handleEngine('libreoffice')}
+                >
+                  LibreOffice
+                </button>
+                <button
+                  className={engines.current === 'powerpoint' ? 'chip chip-active' : 'chip'}
+                  onClick={() => handleEngine('powerpoint')}
+                  disabled={!engines.powerPointAvailable}
+                  title={
+                    engines.powerPointAvailable
+                      ? 'Render with Microsoft PowerPoint'
+                      : 'Microsoft PowerPoint is not installed'
+                  }
+                >
+                  PowerPoint
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
