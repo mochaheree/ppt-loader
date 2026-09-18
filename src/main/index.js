@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, clipboard } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
@@ -59,6 +59,13 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Donate/contact links must open in the system browser, not a second app
+  // window, which is Electron's default for target="_blank".
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.loadURL(DEV_URL);
@@ -238,6 +245,11 @@ ipcMain.handle('settings:save', (_event, settings) => {
 });
 
 ipcMain.handle('settings:load', () => getSettings());
+
+ipcMain.handle('system:copyText', (_event, text) => {
+  clipboard.writeText(String(text));
+  return { ok: true };
+});
 
 app.on('ready', () => {
   registerSlideProtocol();

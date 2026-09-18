@@ -14,10 +14,12 @@ import Input from './components/ui/Input.jsx';
 import Toggle from './components/ui/Toggle.jsx';
 import Badge from './components/ui/Badge.jsx';
 import Segmented from './components/ui/Segmented.jsx';
+import Donate from './components/Donate.jsx';
 
 const TABS = [
   { id: 'perform', label: 'Perform' },
   { id: 'setup', label: 'Setup' },
+  { id: 'donate', label: 'Donate' },
 ];
 
 const SCALE_MODES = [
@@ -217,7 +219,9 @@ export default function App() {
           </div>
         )}
 
-        {tab === 'perform' ? (
+        {tab === 'donate' ? (
+          <Donate />
+        ) : tab === 'perform' ? (
           <div className="flex min-h-full items-center justify-center">
             {!deck && !progress && (
               <div className="flex flex-col items-center gap-5 text-center">

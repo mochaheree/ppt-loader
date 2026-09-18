@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('api', {
   settingsSave: (settings) => ipcRenderer.invoke('settings:save', settings),
   settingsLoad: () => ipcRenderer.invoke('settings:load'),
 
+  copyText: (text) => ipcRenderer.invoke('system:copyText', text),
+
   onConvertProgress: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('convert:progress', listener);
