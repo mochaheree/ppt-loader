@@ -26,14 +26,34 @@ function getSettings() {
   });
 }
 
+// Kept in step with the header height in App.jsx.
+const TITLEBAR_HEIGHT = 48;
+const DEV_URL = 'http://localhost:5175';
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 700,
-    backgroundColor: '#0f172a',
+    width: 1180,
+    height: 780,
+    minWidth: 960,
+    minHeight: 640,
+    // Matches --background, so the window does not flash pale before the
+    // renderer paints.
+    backgroundColor: '#0a0a0a',
     title: 'CUEVO PPT Loader',
+    autoHideMenuBar: true,
+    // VS Code-style title bar, as in BeatSync: the system bar is hidden and the
+    // app's own header takes its place, while the window controls stay NATIVE
+    // via the overlay so Windows 11 Snap Layouts keep working.
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 16, y: 16 } }
+      : {
+          titleBarOverlay: {
+            color: '#0a0a0a', // --background
+            symbolColor: '#a1a1a1', // --muted-foreground
+            height: TITLEBAR_HEIGHT,
+          },
+        }),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.cjs'),
       contextIsolation: true,
@@ -41,8 +61,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadURL('http://localhost:5174');
-  mainWindow.webContents.openDevTools();
+  mainWindow.loadURL(DEV_URL);
 }
 
 // The renderer is served over http://localhost, and Chromium blocks file://
@@ -131,6 +150,8 @@ ipcMain.handle('file:load', async () => {
 });
 
 ipcMain.handle('file:getRecent', () => store.get('recentFiles', []));
+
+ipcMain.handle('file:open', (_event, filePath) => loadPresentation(filePath));
 
 ipcMain.handle('engine:list', async () => ({
   current: getSettings().engine,

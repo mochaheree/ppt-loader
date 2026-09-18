@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   fileLoad: () => ipcRenderer.invoke('file:load'),
   fileGetRecent: () => ipcRenderer.invoke('file:getRecent'),
+  fileOpen: (filePath) => ipcRenderer.invoke('file:open', filePath),
 
   engineList: () => ipcRenderer.invoke('engine:list'),
   engineSet: (engine) => ipcRenderer.invoke('engine:set', engine),
