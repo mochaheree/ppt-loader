@@ -128,3 +128,41 @@ body {
   min-width: 60px;
   text-align: center;
 }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scale-modes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scale-label {
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.chip {
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.chip-active {
+  background: var(--primary);
+  color: var(--text);
+  border-color: var(--primary);
+}

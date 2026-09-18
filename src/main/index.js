@@ -3,12 +3,27 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Store from 'electron-store';
 import { convertPresentation } from './converter.js';
+import * as spout from './spout.js';
+import * as offscreen from './offscreenRenderer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const store = new Store();
 
 let mainWindow;
 let currentDeck = null; // { filePath, fileHash, slideCount, slides }
+
+function getSettings() {
+  return store.get('deckSettings', {
+    engine: 'libreoffice',
+    scaleMode: 'fit',
+    autopilot: 'off',
+    duration: 5,
+    fade: true,
+    fadeDurationMs: 400,
+    loop: true,
+    spoutSenderName: 'CUEVO PPT Loader',
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -44,12 +59,19 @@ function serializeDeck(deck) {
   };
 }
 
+async function pushCurrentSlide() {
+  if (!currentDeck || !offscreen.isRunning()) return;
+  const slide = currentDeck.slides[currentDeck.currentIndex];
+  await offscreen.showSlide(toFileUrl(slide.pngPath), getSettings().scaleMode);
+}
+
 async function loadPresentation(filePath) {
   mainWindow.webContents.send('convert:progress', { stage: 'starting' });
   const manifest = await convertPresentation(filePath, {
     onProgress: (p) => mainWindow.webContents.send('convert:progress', p),
   });
   currentDeck = { ...manifest, currentIndex: 0 };
+  await pushCurrentSlide();
   mainWindow.webContents.send('convert:complete', serializeDeck(currentDeck));
   return serializeDeck(currentDeck);
 }
@@ -71,44 +93,63 @@ ipcMain.handle('file:load', async () => {
 
 ipcMain.handle('file:getRecent', () => store.get('recentFiles', []));
 
-ipcMain.handle('playback:next', () => {
+ipcMain.handle('playback:next', async () => {
   if (!currentDeck) return null;
   currentDeck.currentIndex = (currentDeck.currentIndex + 1) % currentDeck.slideCount;
+  await pushCurrentSlide();
   return serializeDeck(currentDeck);
 });
 
-ipcMain.handle('playback:prev', () => {
+ipcMain.handle('playback:prev', async () => {
   if (!currentDeck) return null;
   currentDeck.currentIndex =
     (currentDeck.currentIndex - 1 + currentDeck.slideCount) % currentDeck.slideCount;
+  await pushCurrentSlide();
   return serializeDeck(currentDeck);
 });
 
-ipcMain.handle('playback:playAt', (_event, index) => {
+ipcMain.handle('playback:playAt', async (_event, index) => {
   if (!currentDeck) return null;
   currentDeck.currentIndex = Math.max(0, Math.min(index, currentDeck.slideCount - 1));
+  await pushCurrentSlide();
   return serializeDeck(currentDeck);
 });
+
+ipcMain.handle('scale:set', async (_event, scaleMode) => {
+  store.set('deckSettings', { ...getSettings(), scaleMode });
+  await offscreen.setScaleMode(scaleMode);
+  return scaleMode;
+});
+
+ipcMain.handle('spout:start', async () => {
+  const { spoutSenderName } = getSettings();
+  spout.start(spoutSenderName);
+  await offscreen.init();
+  await pushCurrentSlide();
+  return spout.status();
+});
+
+ipcMain.handle('spout:stop', () => {
+  offscreen.destroy();
+  spout.stop();
+  return spout.status();
+});
+
+ipcMain.handle('spout:status', () => spout.status());
 
 ipcMain.handle('settings:save', (_event, settings) => {
   store.set('deckSettings', settings);
   return true;
 });
 
-ipcMain.handle('settings:load', () =>
-  store.get('deckSettings', {
-    engine: 'libreoffice',
-    scaleMode: 'fit',
-    autopilot: 'off',
-    duration: 5,
-    fade: true,
-    fadeDurationMs: 400,
-    loop: true,
-    spoutSenderName: 'CUEVO PPT Loader',
-  }),
-);
+ipcMain.handle('settings:load', () => getSettings());
 
 app.on('ready', createWindow);
+
+app.on('before-quit', () => {
+  offscreen.destroy();
+  spout.stop();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
