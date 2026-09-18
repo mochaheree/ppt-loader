@@ -9,7 +9,8 @@
     "react-dev": "vite",
     "build": "electron-builder",
     "react-build": "vite build",
-    "build-native": "node-gyp rebuild -C native/spout-sender"
+    "build-native": "node-gyp rebuild -C native/spout-sender",
+    "spout-test": "node scripts/spout-test.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",
