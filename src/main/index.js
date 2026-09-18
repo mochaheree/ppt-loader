@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import Store from 'electron-store';
-import { convertPresentation } from './converter.js';
+import { convertPresentation, CACHE_ROOT } from './converter.js';
 import * as spout from './spout.js';
 import * as offscreen from './offscreenRenderer.js';
 
@@ -44,8 +44,26 @@ function createWindow() {
   mainWindow.webContents.openDevTools();
 }
 
-function toFileUrl(pngPath) {
-  return `file:///${pngPath.replace(/\\/g, '/')}`;
+// The renderer is served over http://localhost, and Chromium blocks file://
+// resources from an http origin, so cached slides are served over a custom
+// scheme instead.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'slide', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
+
+function registerSlideProtocol() {
+  protocol.handle('slide', (request) => {
+    const url = new URL(request.url);
+    const hash = url.hostname;
+    // basename() strips any traversal segments before they reach the filesystem
+    const name = path.basename(decodeURIComponent(url.pathname));
+    if (!/^[0-9a-f]+$/.test(hash)) return new Response('bad request', { status: 400 });
+    return net.fetch(pathToFileURL(path.join(CACHE_ROOT, hash, name)).toString());
+  });
+}
+
+function toSlideUrl(fileHash, pngPath) {
+  return `slide://${fileHash}/${path.basename(pngPath)}`;
 }
 
 function serializeDeck(deck) {
@@ -55,14 +73,17 @@ function serializeDeck(deck) {
     fileHash: deck.fileHash,
     slideCount: deck.slideCount,
     currentIndex: deck.currentIndex,
-    slides: deck.slides.map((s) => ({ ...s, url: toFileUrl(s.pngPath) })),
+    slides: deck.slides.map((s) => ({ ...s, url: toSlideUrl(deck.fileHash, s.pngPath) })),
   };
 }
 
 async function pushCurrentSlide() {
   if (!currentDeck || !offscreen.isRunning()) return;
   const slide = currentDeck.slides[currentDeck.currentIndex];
-  await offscreen.showSlide(toFileUrl(slide.pngPath), getSettings().scaleMode);
+  await offscreen.showSlide(
+    toSlideUrl(currentDeck.fileHash, slide.pngPath),
+    getSettings().scaleMode,
+  );
 }
 
 async function loadPresentation(filePath) {
@@ -144,7 +165,10 @@ ipcMain.handle('settings:save', (_event, settings) => {
 
 ipcMain.handle('settings:load', () => getSettings());
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  registerSlideProtocol();
+  createWindow();
+});
 
 app.on('before-quit', () => {
   offscreen.destroy();

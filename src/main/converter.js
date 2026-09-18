@@ -8,7 +8,7 @@ import { createCanvas } from '@napi-rs/canvas';
 
 const execFileAsync = promisify(execFile);
 
-const CACHE_ROOT = path.join(os.tmpdir(), 'cuevo-ppt-loader-cache');
+export const CACHE_ROOT = path.join(os.tmpdir(), 'cuevo-ppt-loader-cache');
 
 const LIBREOFFICE_CANDIDATES = [
   'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
