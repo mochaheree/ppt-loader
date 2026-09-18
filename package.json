@@ -1,0 +1,49 @@
+{
+  "name": "cuevo-ppt-loader",
+  "version": "0.1.0",
+  "description": "CUEVO PPT Loader - loads PowerPoint slides into Resolume Arena as a live Spout source",
+  "main": "src/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron .",
+    "react-dev": "vite",
+    "build": "electron-builder",
+    "react-build": "vite build",
+    "build-native": "node-gyp rebuild -C native/spout-sender"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.9",
+    "electron-store": "^10.0.0",
+    "node-addon-api": "^8.9.2",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "vite": "^6.3.0"
+  },
+  "build": {
+    "appId": "com.cuevo.pptloader",
+    "productName": "CUEVO PPT Loader",
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "src/preload.cjs",
+      "native/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}
