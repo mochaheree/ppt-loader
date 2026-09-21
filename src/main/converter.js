@@ -116,7 +116,14 @@ async function convertWithPowerPoint(pptxPath, outDir, { width = 1920, height = 
     throw new Error('Microsoft PowerPoint is not installed. Use the LibreOffice engine instead.');
   }
 
-  const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'export-pptx.ps1');
+  // powershell.exe is a separate OS process, not Electron's patched Node fs,
+  // so it cannot read a path inside app.asar even though asarUnpack extracted
+  // a real copy alongside it. Node's own require() rewrites asar paths for
+  // native .node modules automatically; a path handed to an external process
+  // has to be rewritten by hand.
+  const scriptPath = path
+    .join(__dirname, '..', '..', 'scripts', 'export-pptx.ps1')
+    .replace('app.asar', 'app.asar.unpacked');
   await execFileAsync('powershell', [
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
     '-File', scriptPath,

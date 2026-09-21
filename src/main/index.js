@@ -29,6 +29,7 @@ function getSettings() {
 // Kept in step with the header height in App.jsx.
 const TITLEBAR_HEIGHT = 48;
 const DEV_URL = 'http://localhost:5175';
+const isDev = !app.isPackaged;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -69,7 +70,12 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  mainWindow.loadURL(DEV_URL);
+  if (isDev) {
+    mainWindow.loadURL(DEV_URL);
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'));
+  }
 }
 
 // The renderer is served over http://localhost, and Chromium blocks file://
